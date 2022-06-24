@@ -1,10 +1,15 @@
+import cmdr.format.DefaultFormatter;
+import cmdr.output.FormattedOutput;
 import cmdr.input.SysInput;
 import cmdr.output.SysOutput;
 import cmdr.*;
 
 function main() {
   var app = new Application([ new TestCommand() ]);
-  app.execute(new SysInput(), new SysOutput());
+  app.execute(
+    new SysInput(),
+    new FormattedOutput(new DefaultFormatter(), new SysOutput())
+  );
 }
 
 @:command(
@@ -20,7 +25,12 @@ class TestCommand extends Command {
   public function new() {}
 
   public function process(input:Input, output:Output):ExitCode {
-    output.writeLn(bar, bin, Std.string(off), foo);
+    output.writeLn(
+      bar, 
+      '<bold:bg-white:black>$bin</bold:bg-white:black>',
+      '<underscore:red>${off}</underscore:red>',
+      foo
+    );
     return Success;
   }
 }

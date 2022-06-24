@@ -84,6 +84,11 @@ function build() {
       if (args.length > $v{argLength}) {
         return Invalid('Too many arguments -- expected ' + $v{argLength} + ' but recieved ' + args.length);
       }
+    });
+  }
+  if (requiredArgLength > 0) {
+    validation.push(macro {
+      var args = input.getArguments();
       if (args.length < $v{requiredArgLength}) {
         return Invalid('Expected at least ' + $v{requiredArgLength} + ' arguments');
       }
