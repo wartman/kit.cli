@@ -2,6 +2,8 @@ package cmdr.input;
 
 import haxe.ds.Option;
 
+using cmdr.input.InputParser;
+
 class ArrayInput implements Input {
   final arguments:Array<String>;
   final options:Map<String, String>;
@@ -9,12 +11,12 @@ class ArrayInput implements Input {
   
   public function new(args:Array<String>) {
     this.command = args[0];
-    var parsed = new InputParser(args.slice(1)).parse();
+    var parsed = args.slice(1).parse();
     this.arguments = parsed.arguments;
     this.options = parsed.options;
   }
 
-	public function setOption(name:String, shortName:String, value:String) {
+  public function setOption(name:String, shortName:String, value:String) {
     options.set(name, value);
     options.set(shortName, value);
   }
@@ -25,6 +27,10 @@ class ArrayInput implements Input {
       value = options.get(shortName);
     }
     return value == null ? None : Some(value);
+  }
+
+  public function getArguments() {
+    return arguments;
   }
 
   public function findArgument(index:Int):Option<Dynamic> {

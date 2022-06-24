@@ -12,7 +12,9 @@ using haxe.macro.Tools;
 function build() {
   var fields = Context.getBuildFields();
   var cls = Context.getLocalClass().get();
-  var info = cls.extractCommandMeta();
+  var info = cls.extractCommandInfo();
+  var help:Array<Expr> = [];
+  var validation:Array<Expr> = [];
   var argumentInfo:Array<ArgumentInfo> = [];
   var argumentSummery:Array<String> = [];
   var argumentParsers:Array<Expr> = [];
@@ -59,8 +61,13 @@ function build() {
     var name = field.name;
     var info = field.extractOptionInfo();
     var parser = info.createOptionParser();
+    var optionHelp = '    ' 
+      + [ info.shortName, info.name ].filter(n -> n != null).join(', ')
+      + ': ' + info.description;
+    
     optionSummery.push(info.validateOptionInfo().createOptionSummery());
     optionParsers.push(macro this.$name = $parser);
+    help.push(macro $v{optionHelp});
   }
 
   var summery = optionSummery;
@@ -69,14 +76,37 @@ function build() {
   }
   summery = summery.concat(argumentSummery);
 
+  var argLength = argumentInfo.length;
+  var requiredArgLength = argumentInfo.filter(arg -> arg.defaultValue == null).length;
+  if (argLength > 0) {
+    validation.push(macro {
+      var args = input.getArguments();
+      if (args.length > $v{argLength}) {
+        return Invalid('Too many arguments -- expected ' + $v{argLength} + ' but recieved ' + args.length);
+      }
+      if (args.length < $v{requiredArgLength}) {
+        return Invalid('Expected at least ' + $v{requiredArgLength} + ' arguments');
+      }
+    });
+  }
+
   fields.addFields(macro class {
-    function getArgumentsAndOptionSummery():String {
-      return $v{summery.join(' ')};
+    function validate(input:cmdr.Input):cmdr.Command.CommandValidation {
+      $b{validation};
+      return Valid;
     }
 
     function bind(input:cmdr.Input) {
       $b{argumentParsers};
       $b{optionParsers};
+    }
+
+    function getArgumentsAndOptionSummery():String {
+      return $v{summery.join(' ')};
+    }
+
+    function getArgumentsAndOptionHelp():Array<String> {
+      return [ $a{help} ];
     }
   });
 
@@ -103,7 +133,7 @@ typedef CommandInfo = {
   public var description:Null<String>;
 };
 
-private function extractCommandMeta(cls:ClassType):CommandInfo {
+private function extractCommandInfo(cls:ClassType):CommandInfo {
   var info:CommandInfo = {
     name: null,
     description: null

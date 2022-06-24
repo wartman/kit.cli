@@ -19,8 +19,8 @@ class TestCommand extends Command {
 
   public function new() {}
 
-	public function process(input:Input, output:Output):ExitCode {
+  public function process(input:Input, output:Output):ExitCode {
     output.writeLn(bar, bin, Std.string(off), foo);
     return Success;
-	}
+  }
 }

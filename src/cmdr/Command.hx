@@ -1,5 +1,10 @@
 package cmdr;
 
+enum CommandValidation {
+  Valid;
+  Invalid(message:String);
+}
+
 @:autoBuild(cmdr.CommandBuilder.build())
 abstract class Command {
   abstract public function getName():String;
@@ -9,9 +14,15 @@ abstract class Command {
   abstract function bind(input:Input):Void;
 
   abstract function process(input:Input, output:Output):ExitCode;
+
+  abstract function validate(input:Input):CommandValidation;
+
+  abstract public function getArgumentsAndOptionSummery():String;
+  
+  abstract public function getArgumentsAndOptionHelp():Array<String>;
   
   public function getSummery():Array<String> {
-    var parts:Array<String> = ['', 'Command: ' + getName(), ''];
+    var parts:Array<String> = [''];
     var desc = getDescription();
 
     if (desc != null) {
@@ -20,14 +31,14 @@ abstract class Command {
 
     return parts.concat([
       '',
-      'Usage:',
-      '',
-      '    ' + getName() + ' ' + getArgumentsAndOptionSummery() 
-    ]);
+      getUsageMessage(),
+      ''
+    ]).concat(getArgumentsAndOptionHelp());
   }
 
-  abstract public function getArgumentsAndOptionSummery():String;
-  // abstract function getHelp():String;
+  function getUsageMessage() {
+    return 'Usage: ' + getName() + ' ' + getArgumentsAndOptionSummery();
+  }
 
   public function toString() {
     return getSummery().join('\n');
@@ -39,12 +50,20 @@ abstract class Command {
   }
 
   final public function execute(input:Input, output:Output):ExitCode {
-    return switch (input.findOption('--help')) {
+    return try switch (input.findOption('--help')) {
       case Some(value):
         displayHelp(value, output);
-      case None:  
-        bind(input);
-        process(input, output);
+      case None: switch validate(input) {
+        case Valid:
+          bind(input);
+          process(input, output);
+        case Invalid(message):
+          output.writeLn(message, '', getUsageMessage());
+          Failure;
+      }
+    } catch (e) {
+      output.writeLn('Error: ' + e.message, '', getUsageMessage());
+      Failure;
     }
   }
 }

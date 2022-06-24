@@ -37,8 +37,7 @@ class HelpCommand extends Command {
     var summeries = app.getCommands().map(c -> '    ' + c.getName() + ': ' + c.getDescription());
     output.writeLn(...[
       '',
-      'Available commands:',
-      ''
+      'Commands:'
     ].concat(summeries));
 
     return Success;
