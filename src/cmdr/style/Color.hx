@@ -1,4 +1,4 @@
-package cmdr.format.style;
+package cmdr.style;
 
 enum abstract Color(Int) {
   final Black;

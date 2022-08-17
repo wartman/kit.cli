@@ -31,8 +31,8 @@ function build() {
     }
   });
 
-  for (field in fields.filterWithMeta(':argument', ':arg')) {
-    argumentInfo.push(field.extractArgumentInfo());
+  for (index => field in fields.filterWithMeta(':argument', ':arg')) {
+    argumentInfo.push(field.extractArgumentInfo(index));
   }
 
   argumentInfo.sort((a, b) -> {
@@ -207,7 +207,7 @@ typedef ArgumentInfo = {
   public final pos:Position;
 }
 
-private function extractArgumentInfo(field:Field):ArgumentInfo {
+private function extractArgumentInfo(field:Field, defaultIndex:Int):ArgumentInfo {
   if (field.access.contains(AFinal)) {
     Context.error('@:argument fields cannot be final', field.pos);
   }
@@ -220,18 +220,17 @@ private function extractArgumentInfo(field:Field):ArgumentInfo {
       var index:Int = switch meta.params {
         case [ macro description = $d ]:
           description = d.extractString();
-          null;
+          defaultIndex;
         case [ e, macro description = $d ]:
           description = d.extractString();
           e.extractInt();
         case [ e ]: 
           e.extractInt();
         case []: 
-          Context.error('Expected an index', meta.pos);
-          null;
+          defaultIndex;
         default:
           Context.error('Too many arguments', meta.pos);
-          null;
+          defaultIndex;
       }
 
       {

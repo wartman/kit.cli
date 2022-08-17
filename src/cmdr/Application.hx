@@ -24,6 +24,7 @@ class Application {
       case Some(name):
         var command = getCommand(name);
         if (command == null) {
+          // @todo: This is weird and clunky.
           input.setOption('--invalidCommand', '-i', name);
           return getCommand('help').execute(input, output);
         }

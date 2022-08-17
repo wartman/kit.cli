@@ -5,7 +5,7 @@ package cmdr;
   description = 'Get help for each command'
 )
 class HelpCommand extends Command {
-  @:arg(0) var command:String = null;
+  @:arg var command:String = null;
 
   final app:Application;
 

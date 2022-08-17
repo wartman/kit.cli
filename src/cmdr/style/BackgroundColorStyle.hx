@@ -1,4 +1,4 @@
-package cmdr.format.style;
+package cmdr.style;
 
 class BackgroundColorStyle implements Style {
   public final name:String;
@@ -9,8 +9,7 @@ class BackgroundColorStyle implements Style {
     this.color = color;
   }
 
-  public function apply(value:Fragment):Fragment {
+  public function apply(value:StyledText):Void {
     value.setBackground('4' + color);
-    return value;
   }
 }

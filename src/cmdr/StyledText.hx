@@ -2,7 +2,22 @@ package cmdr;
 
 using Std;
 
-class Fragment {
+@:forward
+abstract StyledText(StyledTextImpl) from StyledTextImpl {
+  @:from public inline static function ofString(value:String) {
+    return new StyledText(value);
+  }
+
+  public inline function new(value) {
+    this = new StyledTextImpl(value);
+  }
+
+  @:to public function toString():String {
+    return this.render();
+  }
+}
+
+private class StyledTextImpl {
   var foreground:Null<String> = null;
   var background:Null<String> = null;
   final options:Array<{ set:Int, unset:Int }> = [];
@@ -27,7 +42,12 @@ class Fragment {
     return this;
   }
 
-  public function apply() {
+  public function useStyle(...styles:Style) {
+    for (style in styles) style.apply(this);
+    return this;
+  }
+
+  public function render() {
     var setCodes:Array<String> = [];
     var unsetCodes:Array<String> = [];
 
@@ -48,5 +68,5 @@ class Fragment {
     if (setCodes.length == 0) return value;
 
     return '\033[${setCodes.join(';')}m$value\033[${unsetCodes.join(';')}m';
-  }
+  } 
 }

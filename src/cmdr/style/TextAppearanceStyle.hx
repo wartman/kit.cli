@@ -1,4 +1,4 @@
-package cmdr.format.style;
+package cmdr.style;
 
 enum abstract TextAppearanceStyleName(String) from String to String {
   final Bold = 'bold';
@@ -12,11 +12,10 @@ class TextAppearanceStyle implements Style {
     this.name = name;
   }
 
-  public function apply(value:Fragment):Fragment {
+  public function apply(value:StyledText):Void {
     switch (name:TextAppearanceStyleName) {
       case Bold: value.addOption({ set: 1, unset: 22 });
       case Underscore: value.addOption({ set: 4, unset: 24 });
     }
-    return value;
   }
 }
