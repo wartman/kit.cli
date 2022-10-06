@@ -1,5 +1,0 @@
-package cmdr;
-
-class Prompt {
-  
-}

@@ -3,8 +3,9 @@ package cmdr.input;
 using StringTools;
 
 typedef InputParserResults = {
-  arguments:Array<String>,
-  options:Map<String, String>
+  public final arguments:Array<String>;
+  public final options:Map<String, String>;
+  // public final commands:Map<String, InputParserResults>;
 }; 
 
 function parse(tokens:Array<String>):InputParserResults {

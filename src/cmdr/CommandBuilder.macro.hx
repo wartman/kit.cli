@@ -12,24 +12,20 @@ using haxe.macro.Tools;
 function build() {
   var fields = Context.getBuildFields();
   var cls = Context.getLocalClass().get();
-  var info = cls.extractCommandInfo();
   var help:Array<Expr> = [];
+  var helpSpacer = '    ';
   var validation:Array<Expr> = [];
+  var subcommandInfo:Array<SubcommandInfo> = [];
   var argumentInfo:Array<ArgumentInfo> = [];
   var argumentSummery:Array<String> = [];
   var argumentParsers:Array<Expr> = [];
   var optionSummery:Array<String> = [];
   var optionParsers:Array<Expr> = [];
+  var argumentOrOptionHelp:Array<Expr> = [];
 
-  fields.addFields(macro class {
-    public function getName():String {
-      return $v{info.name};
-    }
-  
-    public function getDescription():Null<String> {
-      return $v{info.description};
-    }
-  });
+  for (index => field in fields.filterWithMeta(':command', ':cmd')) {
+    subcommandInfo.push(field.extractSubcommandInfo());
+  }
 
   for (index => field in fields.filterWithMeta(':argument', ':arg')) {
     argumentInfo.push(field.extractArgumentInfo(index));
@@ -61,13 +57,19 @@ function build() {
     var name = field.name;
     var info = field.extractOptionInfo();
     var parser = info.createOptionParser();
-    var optionHelp = '    ' 
-      + [ info.shortName, info.name ].filter(n -> n != null).join(', ')
-      + ': ' + info.description;
+    var flags = [ info.shortName, info.name ].filter(n -> n != null).join(', ');
+    var shortHelp = helpSpacer + flags + ': ' + info.description;
+    var summery = info.validateOptionInfo().createOptionSummery();
+    var longHelp = [
+      info.description,
+      '',
+      'Usage: ' + summery
+    ].filter(n -> n != null).join('\n');
     
-    optionSummery.push(info.validateOptionInfo().createOptionSummery());
+    optionSummery.push(summery);
     optionParsers.push(macro this.$name = $parser);
-    help.push(macro $v{optionHelp});
+    help.push(macro $v{shortHelp});
+    argumentOrOptionHelp.push(macro if (name == $v{name}) return Some($v{longHelp}));
   }
 
   var summery = optionSummery;
@@ -75,6 +77,10 @@ function build() {
     summery.push('[--]');
   }
   summery = summery.concat(argumentSummery);
+
+  if (summery.length == 0) {
+    summery.push('(no arguments)');
+  }
 
   var argLength = argumentInfo.length;
   var requiredArgLength = argumentInfo.filter(arg -> arg.defaultValue == null).length;
@@ -95,6 +101,35 @@ function build() {
     });
   }
 
+  var executeSubcommand:Expr = subcommandInfo.length <= 0
+    ? macro None
+    : macro switch input.getSubcommand() {
+      case Some(input): switch input.getCommand() {
+        case Some(name):
+          $b{subcommandInfo.map(sub -> sub.expr)};
+          None;
+        case None: 
+          None;
+      }
+      case None: None;
+    };
+  var getSubcommandUsage:Expr = subcommandInfo.length <= 0
+    ? macro return None
+    : macro {
+      $b{subcommandInfo.map(sub -> sub.usage)};
+      return None;
+    }
+
+  if (subcommandInfo.length > 0) {
+    help.push(macro '');
+    help.push(macro 'Commands:');
+    help.push(macro '');
+    for (info in subcommandInfo) {
+      var name = info.name;
+      help.push(macro $v{helpSpacer + name} + ' ' + this.$name.getArgumentsAndOptionSummery());
+    }
+  }
+
   fields.addFields(macro class {
     function validate(input:cmdr.Input):cmdr.Command.CommandValidation {
       $b{validation};
@@ -112,6 +147,23 @@ function build() {
 
     function getArgumentsAndOptionHelp():Array<String> {
       return [ $a{help} ];
+    }
+    
+    public function getArgumentOrOptionUsage(name:String):haxe.ds.Option<String> {
+      $b{argumentOrOptionHelp};
+      return None;
+    }
+  
+    public function maybeExecuteSubcommand(input:cmdr.Input, output:cmdr.Output):haxe.ds.Option<cmdr.ExitCode> {
+      return ${executeSubcommand};
+    }
+    
+    public function getSubcommandUsage(name:String):haxe.ds.Option<String> {
+      ${getSubcommandUsage};
+    }
+
+    public function listSubcommands():Array<String> {
+      return [ $a{subcommandInfo.map(sub -> macro $v{sub.name})} ];
     }
   });
 
@@ -131,46 +183,6 @@ private function getMeta(field:Field, ...names:String) {
   if (field.meta == null) return null;
   var names = names.toArray();
   return field.meta.find(m -> names.contains(m.name));
-}
-
-typedef CommandInfo = {
-  public var name:Null<String>;
-  public var description:Null<String>;
-};
-
-private function extractCommandInfo(cls:ClassType):CommandInfo {
-  var info:CommandInfo = {
-    name: null,
-    description: null
-  };
-
-  switch cls.meta.extract(':command') {
-    case [ meta ]: 
-      for (param in meta.params) switch param {
-        case macro name = $name:
-          if (info.name != null) {
-            Context.error('Command name was already set', param.pos);
-          }
-          info.name = name.extractString();
-        case macro description = $description:
-          if (info.description != null) {
-            Context.error('Command description was already set', param.pos);
-          }
-          info.description = description.extractString();
-        default:
-          Context.error('Invalid expression', param.pos);
-      }
-
-      if (info.name == null) {
-        Context.error('A name is required for this Command', meta.pos);
-      }
-    case []:
-      Context.error('@:command meta is required', cls.pos);
-    default:
-      Context.error('Only one @:command is allowed per Command', cls.pos);
-  }
-
-  return info;
 }
 
 enum CommandType {
@@ -196,6 +208,41 @@ private function typeToCommandType(ct:ComplexType, pos:Position):CommandType {
   }
   Context.error('Invalid type: must be a String, Int, Float or Bool', pos);
   return null;
+}
+
+typedef SubcommandInfo = {
+  public final name:String;
+  public final usage:Expr;
+  public final expr:Expr;
+}
+
+private function extractSubcommandInfo(field:Field):SubcommandInfo {
+  if (!field.access.contains(AFinal)) {
+    Context.error('@:command fields must be final', field.pos);
+  }
+
+  switch field.kind {
+    case FVar(t, e):
+      if (t == null) {
+        Context.error('A type is required', field.pos);
+      }
+      if (!Context.unify(t.toType(), Context.getType('cmdr.Command'))) {
+        Context.error('@:command fields must be cmdr.Commands', field.pos);
+      }
+    default:
+      Context.error('@:command fields must be vars', field.pos);
+  }
+
+  var name = field.name;
+
+  return {
+    name: name,
+    usage: macro if (name == $v{name}) return Some([
+      this.$name.getDescription(),
+      'Usage: ' + $v{name} + ' ' + this.$name.getArgumentsAndOptionSummery()
+    ].join('\n')),
+    expr: macro if (name == $v{name}) return Some(this.$name.execute(input, output))
+  };
 }
 
 typedef ArgumentInfo = {

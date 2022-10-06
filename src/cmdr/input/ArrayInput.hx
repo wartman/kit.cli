@@ -5,13 +5,15 @@ import haxe.ds.Option;
 using cmdr.input.InputParser;
 
 class ArrayInput implements Input {
+  final name:Null<String>;
+  final rawArgs:Array<String>;
   final arguments:Array<String>;
   final options:Map<String, String>;
-  final command:Null<String>;
   
-  public function new(args:Array<String>) {
-    this.command = args[0];
-    var parsed = args.slice(1).parse();
+  public function new(?name, args:Array<String>) {
+    this.name = name;
+    this.rawArgs = args;
+    var parsed = args.parse();
     this.arguments = parsed.arguments;
     this.options = parsed.options;
   }
@@ -38,7 +40,14 @@ class ArrayInput implements Input {
     return value == null ? None : Some(value);
   }
 
-  public function currentCommand():Option<String> {
-    return command == null ? None : Some(command);
+  public function getCommand():Option<String> {
+    return name == null ? None : Some(name);
+  }
+
+  public function getSubcommand():Option<Input> {
+    var name = rawArgs[0];
+    if (name == null) return None;
+    var nextArgs = rawArgs.slice(1);
+    return Some(new ArrayInput(name, nextArgs));
   }
 }
