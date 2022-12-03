@@ -1,14 +1,3 @@
-Cmdr
-====
-
-Simple command-line apps for Haxe.
-
-Usage
------
-
-Here's a simple app that greets the user:
-
-```haxe
 import cmdr.*;
 
 using cmdr.StyleTools;
@@ -57,6 +46,3 @@ class Greeter implements Command {
     return Success;
   }
 }
-```
-
-> Note: real instructions are coming soon.

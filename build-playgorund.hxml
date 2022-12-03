@@ -1,0 +1,22 @@
+-cp src
+-cp playground
+
+-lib hxnodejs
+
+-D js-es=6
+-D debug
+-D analyzer-optimize
+
+-dce full
+
+--each
+
+-main Examples
+
+-js dist/examples.js
+
+--next
+
+-main Greeter
+
+-js dist/greet.js

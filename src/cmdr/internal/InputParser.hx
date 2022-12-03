@@ -1,11 +1,10 @@
-package cmdr.input;
+package cmdr.internal;
 
 using StringTools;
 
 typedef InputParserResults = {
   public final arguments:Array<String>;
-  public final options:Map<String, String>;
-  // public final commands:Map<String, InputParserResults>;
+  public final flags:Map<String, String>;
 }; 
 
 function parse(tokens:Array<String>):InputParserResults {
@@ -14,7 +13,7 @@ function parse(tokens:Array<String>):InputParserResults {
   var pos = 0;
   var results:InputParserResults = {
     arguments: [],
-    options: []
+    flags: []
   };
 
   while (pos < tokens.length) {
@@ -25,10 +24,10 @@ function parse(tokens:Array<String>):InputParserResults {
     } else if (!optionsEnded && token.charCodeAt(0) == '-'.code) {
       var next = tokens[pos + 1];
       if (next == null || next.charCodeAt(0) == '-'.code) {
-        results.options.set(token, 'true');
+        results.flags.set(token, 'true');
         pos++;
       } else {
-        results.options.set(token, next);
+        results.flags.set(token, next);
         pos++;
         pos++;
       }

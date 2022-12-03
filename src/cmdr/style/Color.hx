@@ -1,6 +1,6 @@
 package cmdr.style;
 
-enum abstract Color(Int) {
+enum abstract Color(Int) to Int {
   final Black;
   final Red;
   final Green;

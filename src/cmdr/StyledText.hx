@@ -27,22 +27,22 @@ private class StyledTextImpl {
     this.value = value;
   }
 
-  public function setForeground(code:String) {
+  public function setForeground(code:String):StyledText {
     foreground = code;
     return this;
   }
 
-  public function setBackground(code:String) {
+  public function setBackground(code:String):StyledText {
     background = code;
     return this;
   }
 
-  public function addOption(option) {
+  public function addOption(option):StyledText {
     options.push(option);
     return this;
   }
 
-  public function useStyle(...styles:Style) {
+  public function useStyle(...styles:Style):StyledText {
     for (style in styles) style.apply(this);
     return this;
   }

@@ -1,468 +1,380 @@
 package cmdr;
 
 import haxe.macro.Context;
-import haxe.macro.Type.ClassType;
 import haxe.macro.Expr;
+import haxe.macro.Type.ClassType;
+import cmdr.internal.MacroTools;
 
-using Lambda;
 using StringTools;
-using cmdr.CommandBuilder;
-using haxe.macro.Tools;
+using cmdr.internal.MacroTools;
+
+private final FLAG = ':flag';
+private final ALIAS = ':alias';
+private final COMMAND = ':command';
+private final DEFAULT_COMMAND = ':defaultCommand';
+
+enum CmdrType {
+  CmdrString;
+  CmdrInt;
+  CmdrFloat;
+  CmdrBool;
+}
+
+typedef FlagInfo = {
+  public final field:Field;
+  public final name:String;
+  public final short:Null<String>;
+  public final alias:Null<String>;
+  public final doc:Null<String>;
+  public final def:Null<Expr>;
+  public final type:CmdrType;
+}
+
+typedef CommandArg = {
+  public final index:Int;
+  public final name:String;
+  public final doc:Null<String>;
+  public final def:Null<Expr>;
+  public final type:CmdrType;
+} 
+
+enum CommandKind {
+  CmdFunction(params:Array<CommandArg>);
+  CmdSubCommand;
+}
+
+typedef CommandInfo = {
+  public final field:Field;
+  public final name:String;
+  public final alias:Null<String>;
+  public final kind:CommandKind;
+  public final isDefault:Bool;
+  public final doc:Null<String>;
+} 
 
 function build() {
-  var fields = Context.getBuildFields();
   var cls = Context.getLocalClass().get();
-  var help:Array<Expr> = [];
-  var helpSpacer = '    ';
-  var validation:Array<Expr> = [];
-  var subcommandInfo:Array<SubcommandInfo> = [];
-  var argumentInfo:Array<ArgumentInfo> = [];
-  var argumentSummery:Array<String> = [];
-  var argumentParsers:Array<Expr> = [];
-  var optionSummery:Array<String> = [];
-  var optionParsers:Array<Expr> = [];
-  var argumentOrOptionHelp:Array<Expr> = [];
-
-  for (index => field in fields.filterWithMeta(':command', ':cmd')) {
-    subcommandInfo.push(field.extractSubcommandInfo());
+  var fields = getBuildFieldsSafe();
+  var flags = fields.filterByMeta(FLAG).map(extractFlagInto);
+  var commands = fields.filterByMeta(COMMAND).map(cmd -> extractCommandInfo(cmd));
+  var defaultCommand = switch fields.filterByMeta(DEFAULT_COMMAND) {
+    case [ field ]: extractCommandInfo(field, true);
+    case []: 
+      Context.error('A $DEFAULT_COMMAND is required', cls.pos);
+      null;
+    default:
+      Context.error('Only one $DEFAULT_COMMAND is allowed per class', cls.pos);
+      null;
   }
+  var router = createRouter(commands, flags, defaultCommand);
+  var spec = createDocSpec(cls, flags, commands.concat([ defaultCommand ]));
 
-  for (index => field in fields.filterWithMeta(':argument', ':arg')) {
-    argumentInfo.push(field.extractArgumentInfo(index));
-  }
-
-  argumentInfo.sort((a, b) -> {
-    if (a.index == b.index) {
-      Context.error('Arguments cannot have the same index', b.pos);
-    }
-    return a.index - b.index;
-  });
-
-  for (index => info in argumentInfo) {
-    var prev = index > 0 ? argumentInfo[index - 1] : null;
-    var name = info.name;
-    var parser = info.createArgumentParser();
-    
-    if (prev != null && prev.defaultValue != null) {
-      if (info.defaultValue == null) {
-        Context.error('You cannot have a required argument after an optional one', info.pos);
+  fields.add(macro class {
+    @:noCompletion var backing_input:Null<cmdr.Input> = null;
+    public var input(get, never):cmdr.Input;
+    function get_input():cmdr.Input {
+      if (backing_input == null) {
+        throw 'Attempted to access Input before the Command was ready.'
+          + ' Generally, you should only be using cmdr.Command inside'
+          + ' a cmdr.Cli, which will set things up for you.';
       }
-    }
+      return backing_input;
+    } 
 
-    argumentSummery.push(info.createArgumentSummery());
-    argumentParsers.push(macro this.$name = $parser);
-  }
-
-  for (field in fields.filterWithMeta(':option', ':opt')) {
-    var name = field.name;
-    var info = field.extractOptionInfo();
-    var parser = info.createOptionParser();
-    var flags = [ info.shortName, info.name ].filter(n -> n != null).join(', ');
-    var shortHelp = helpSpacer + flags + ': ' + info.description;
-    var summery = info.validateOptionInfo().createOptionSummery();
-    var longHelp = [
-      info.description,
-      '',
-      'Usage: ' + summery
-    ].filter(n -> n != null).join('\n');
-    
-    optionSummery.push(summery);
-    optionParsers.push(macro this.$name = $parser);
-    help.push(macro $v{shortHelp});
-    argumentOrOptionHelp.push(macro if (name == $v{name}) return Some($v{longHelp}));
-  }
-
-  var summery = optionSummery;
-  if (summery.length > 0 && argumentSummery.length > 0) {
-    summery.push('[--]');
-  }
-  summery = summery.concat(argumentSummery);
-
-  if (summery.length == 0) {
-    summery.push('(no arguments)');
-  }
-
-  var argLength = argumentInfo.length;
-  var requiredArgLength = argumentInfo.filter(arg -> arg.defaultValue == null).length;
-  if (argLength > 0) {
-    validation.push(macro {
-      var args = input.getArguments();
-      if (args.length > $v{argLength}) {
-        return Invalid('Too many arguments -- expected ' + $v{argLength} + ' but recieved ' + args.length);
+    @:noCompletion var backing_output:Null<cmdr.Output> = null;
+    public var output(get, never):cmdr.Output;
+    function get_output():cmdr.Output {
+      if (backing_output == null) {
+        throw 'Attempted to access Output before the Command was ready.'
+          + ' Generally, you should only be using cmdr.Command inside'
+          + ' a cmdr.Cli, which will set things up for you.';
       }
-    });
-  }
-  if (requiredArgLength > 0) {
-    validation.push(macro {
-      var args = input.getArguments();
-      if (args.length < $v{requiredArgLength}) {
-        return Invalid('Expected at least ' + $v{requiredArgLength} + ' arguments');
-      }
-    });
-  }
-
-  var executeSubcommand:Expr = subcommandInfo.length <= 0
-    ? macro None
-    : macro switch input.getSubcommand() {
-      case Some(input): switch input.getCommand() {
-        case Some(name):
-          $b{subcommandInfo.map(sub -> sub.expr)};
-          None;
-        case None: 
-          None;
-      }
-      case None: None;
-    };
-  var getSubcommandUsage:Expr = subcommandInfo.length <= 0
-    ? macro return None
-    : macro {
-      $b{subcommandInfo.map(sub -> sub.usage)};
-      return None;
-    }
-
-  if (subcommandInfo.length > 0) {
-    help.push(macro '');
-    help.push(macro 'Commands:');
-    help.push(macro '');
-    for (info in subcommandInfo) {
-      var name = info.name;
-      help.push(macro $v{helpSpacer + name} + ' ' + this.$name.getArgumentsAndOptionSummery());
-    }
-  }
-
-  fields.addFields(macro class {
-    function validate(input:cmdr.Input):cmdr.Command.CommandValidation {
-      $b{validation};
-      return Valid;
-    }
-
-    function bind(input:cmdr.Input) {
-      $b{argumentParsers};
-      $b{optionParsers};
-    }
-
-    function getArgumentsAndOptionSummery():String {
-      return $v{summery.join(' ')};
-    }
-
-    function getArgumentsAndOptionHelp():Array<String> {
-      return [ $a{help} ];
-    }
+      return backing_output;
+    } 
     
-    public function getArgumentOrOptionUsage(name:String):haxe.ds.Option<String> {
-      $b{argumentOrOptionHelp};
-      return None;
-    }
-  
-    public function maybeExecuteSubcommand(input:cmdr.Input, output:cmdr.Output):haxe.ds.Option<cmdr.ExitCode> {
-      return ${executeSubcommand};
-    }
-    
-    public function getSubcommandUsage(name:String):haxe.ds.Option<String> {
-      ${getSubcommandUsage};
+    public function process(input:cmdr.Input, output:cmdr.Output, finish:(result:cmdr.Result)->Void):Void {
+      backing_input = input;
+      backing_output = output;
+      ${router};
     }
 
-    public function listSubcommands():Array<String> {
-      return [ $a{subcommandInfo.map(sub -> macro $v{sub.name})} ];
+    public function getSpec():cmdr.DocSpec {
+      return ${spec};
+    }
+
+    public function getDocs():String {
+      return new cmdr.format.DefaultFormatter().format(getSpec());
     }
   });
 
   return fields;
 }
 
-private function addFields(fields:Array<Field>, td:TypeDefinition) {
-  for (f in td.fields) fields.push(f);
-}
-
-private function filterWithMeta(fields:Array<Field>, ...names:String) {
-  var names = names.toArray();
-  return fields.filter(f -> f.meta != null && f.meta.exists(m -> names.contains(m.name)));
-}
-
-private function getMeta(field:Field, ...names:String) {
-  if (field.meta == null) return null;
-  var names = names.toArray();
-  return field.meta.find(m -> names.contains(m.name));
-}
-
-enum CommandType {
-  CmdString;
-  CmdInt;
-  CmdFloat;
-  CmdBool;
-}
-
-private function typeToCommandType(ct:ComplexType, pos:Position):CommandType {
-  var type = ct.toType();
-  if (type.unify(Context.getType('String'))) {
-    return CmdString;
-  }
-  if (type.unify(Context.getType('Int'))) {
-    return CmdInt;
-  }
-  if (type.unify(Context.getType('Float'))) {
-    return CmdFloat;
-  }
-  if (type.unify(Context.getType('Bool'))) {
-    return CmdBool;
-  }
-  Context.error('Invalid type: must be a String, Int, Float or Bool', pos);
-  return null;
-}
-
-typedef SubcommandInfo = {
-  public final name:String;
-  public final usage:Expr;
-  public final expr:Expr;
-}
-
-private function extractSubcommandInfo(field:Field):SubcommandInfo {
-  if (!field.access.contains(AFinal)) {
-    Context.error('@:command fields must be final', field.pos);
-  }
-
-  switch field.kind {
-    case FVar(t, e):
-      if (t == null) {
-        Context.error('A type is required', field.pos);
-      }
-      if (!Context.unify(t.toType(), Context.getType('cmdr.Command'))) {
-        Context.error('@:command fields must be cmdr.Commands', field.pos);
-      }
-    default:
-      Context.error('@:command fields must be vars', field.pos);
-  }
-
-  var name = field.name;
-
-  return {
-    name: name,
-    usage: macro if (name == $v{name}) return Some([
-      this.$name.getDescription(),
-      'Usage: ' + $v{name} + ' ' + this.$name.getArgumentsAndOptionSummery()
-    ].join('\n')),
-    expr: macro if (name == $v{name}) return Some(this.$name.execute(input, output))
-  };
-}
-
-typedef ArgumentInfo = {
-  public final name:String;
-  public final description:Null<String>;
-  public final index:Int;
-  public final type:CommandType;
-  public final defaultValue:Null<Expr>;
-  public final pos:Position;
-}
-
-private function extractArgumentInfo(field:Field, defaultIndex:Int):ArgumentInfo {
+private function extractFlagInto(field:Field):FlagInfo {
   if (field.access.contains(AFinal)) {
-    Context.error('@:argument fields cannot be final', field.pos);
+    Context.error('$FLAG fields cannot be final', field.pos);
   }
-  
+
   return switch field.kind {
     case FVar(t, e):
-      var meta = field.getMeta(':argument', ':arg');
-      var name = field.name;
-      var description:Null<String> = null;
-      var index:Int = switch meta.params {
-        case [ macro description = $d ]:
-          description = d.extractString();
-          defaultIndex;
-        case [ e, macro description = $d ]:
-          description = d.extractString();
-          e.extractInt();
-        case [ e ]: 
-          e.extractInt();
-        case []: 
-          defaultIndex;
-        default:
-          Context.error('Too many arguments', meta.pos);
-          defaultIndex;
-      }
+      var flagMeta = field.getMeta(FLAG);
+      var name = field.name.toFlagName();
+      var short = flagMeta == null
+        ? field.name.charAt(0).toLowerCase().toShortName()
+        : switch flagMeta.params {
+          case [ name ]: name.extractString().toShortName();
+          case []: field.name.charAt(0).toLowerCase().toShortName();
+          default:
+            Context.error('Too many arguments', flagMeta.pos);
+            '';
+        }
+      var doc = field.doc;
 
       {
+        field: field,
         name: name,
-        index: index,
-        description: description,
-        defaultValue: e,
-        type: t.typeToCommandType(field.pos),
-        pos: field.pos
+        short: short,
+        alias: getAlias(field),
+        doc: doc,
+        def: e,
+        type: extractCmdrType(t, field.pos)
       };
     default:
-      Context.error('@:argument must be a var', field.pos);
+      Context.error('$FLAG must be a var', field.pos);
       null;
   }
 }
 
-private function createArgumentSummery(info:ArgumentInfo) {
-  return info.defaultValue == null
-    ? '<${info.name}>'
-    : '[${info.name}]';
-}
-
-private function createArgumentParser(info:ArgumentInfo) {
-  var defaultBranch = info.defaultValue != null
-    ? macro ${info.defaultValue}
-    : macro throw 'The argument ' + $v{info.name} + ' is required';
-
-  var valueParser = switch info.type {
-    case CmdString: macro value;
-    case CmdInt: macro Std.parseInt(value);
-    case CmdFloat: macro Std.parseFloat(value);
-    case CmdBool: macro switch value {
-      case 'true': true;
-      case 'false': false;
-      default: throw 'Expected `true` or `false';
+private function createFlagParser(info:FlagInfo):Expr {
+  var defaultBranch = info.def != null
+    ? macro ${info.def}
+    : switch info.type {
+      case CmdrBool:
+        macro false;
+      default:
+        macro throw new cmdr.internal.CmdrParseException('The flag ' + $v{info.name} + ' is required');
     }
-  }
 
-  return macro switch input.findArgument($v{info.index}) {
-    case Some(value): $valueParser;
+  var parser = createCmdrTypeParser(info.type);
+  var name = info.field.name;
+
+  return macro this.$name = switch input.findFlag($v{info.name}, $v{info.short}) {
+    case Some(value): $parser;
     case None: $defaultBranch;
   }
 }
 
-typedef OptionInfo = {
-  public final name:String;
-  public final shortName:Null<String>;
-  public final description:Null<String>;
-  public final type:CommandType;
-  public final defaultValue:Null<Expr>;
-  public final pos:Position;
-}
+private function extractCommandInfo(field:Field, isDefault:Bool = false):CommandInfo {
+  var meta = field.getMeta(COMMAND);
+  var name = meta == null
+    ? field.name 
+    : switch meta.params {
+      case [ name ]: name.extractString();
+      case []: field.name;
+      default: 
+        Context.error('Too many arguments', meta.pos);
+        '';
+    }
 
-private function extractOptionInfo(field:Field):OptionInfo {
-  if (field.access.contains(AFinal)) {
-    Context.error('@:option fields cannot be final', field.pos);
-  }
-  
   return switch field.kind {
     case FVar(t, e):
-      var meta = field.getMeta(':option', ':opt');
-      var name = field.name.prepareName();
-      var description:Null<String> = null;
-      var shortName = prepareShortName(switch meta.params {
-        case [ macro description = $d ]:
-          description = d.extractString();
-          null;
-        case [ e, macro description = $d ]:
-          description = d.extractString();
-          e.extractString();
-        case [ e ]: 
-          e.extractString();
-        case []: 
-          null;
-        default:
-          Context.error('Too many arguments', meta.pos);
-          null;
-      });
-
-      if (shortName != null && shortName.length > 2) {
-        Context.error('Short name should only be one character long (not conting the `-`)', meta.params[0].pos);
+      if (!field.access.contains(AFinal)) {
+        Context.error('${COMMAND} fields must be final', field.pos);
+      }
+      if (field.access.contains(AStatic)) {
+        Context.error('${COMMAND} fields cannot be static', field.pos);
       }
 
       {
-        name: name, 
-        shortName: shortName,
-        description: description,
-        type: t.typeToCommandType(field.pos),
-        defaultValue: e,
-        pos: field.pos
+        field: field,
+        name: name,
+        kind: CmdSubCommand,
+        alias: getAlias(field),
+        doc: field.doc,
+        isDefault: isDefault
+      };
+    case FFun(f):
+      var args:Array<CommandArg> = [ for (index => a in f.args) ({
+        index: index,
+        name: a.name,
+        doc: null,
+        def: a.value,
+        type: extractCmdrType(a.type, field.pos)
+      }:CommandArg) ];
+
+      {
+        field: field,
+        name: name,
+        kind: CmdFunction(args),
+        alias: getAlias(field),
+        doc: field.doc,
+        isDefault: isDefault
       };
     default:
-      Context.error('@:option must be a var', field.pos);
+      Context.error('Invalid target for ${COMMAND} -- must be a method or a final variable', field.pos);
       null;
   }
 }
 
-private function validateOptionInfo(info:OptionInfo) {
-  if (info.type.equals(CmdBool)) {
-    switch info.defaultValue {
-      case null:
-        Context.error('Boolean options require a default value of false', info.pos);
-      case macro true: 
-        Context.error('Default values for boolean values can only be false', info.pos);
-      default:
-    }
-  }
+private function createCommandParser(command:CommandInfo) {
+  var name = command.field.name;
+  var args:Expr = command.isDefault 
+    ? macro input.getArguments() 
+    : macro input.getArguments().slice(1);
 
-  return info;
+  return switch command.kind {
+    case CmdFunction([]):
+      macro finish(@:pos(command.field.pos) this.$name());
+    case CmdFunction(params):
+      var callArgs = params.map(createArgumentParser);
+      macro {
+        var __arguments = $args;
+        finish(@:pos(command.field.pos) this.$name($a{callArgs}));
+      }
+    case CmdSubCommand:
+      macro {
+        this.$name.process(
+          new cmdr.input.ArrayInput(
+            input.getFlags(),
+            $args
+          ),
+          output,
+          finish
+        );
+      };
+  }
 }
 
-private function createOptionSummery(info:OptionInfo) {
-  var output:Array<String> = [];
-  var name = info.shortName != null ? '${info.shortName}|${info.name}' : info.name;
-  var placeholderName = info.name.substr(2).toUpperCase();
-
-  if (info.type.equals(CmdBool)) {
-    return '[$name]';
+private function createArgumentParser(arg:CommandArg) {
+  var defaultBranch = arg.def == null
+    ? macro throw new cmdr.internal.CmdrParseException('The argument ' + $v{arg.name} + ' is required')
+    : arg.def;
+  var parser = createCmdrTypeParser(arg.type);
+  return macro switch __arguments[$v{arg.index}] {
+    case null: $defaultBranch;
+    case value: $parser;
   }
+}
+
+private function createCmdrTypeParser(type:CmdrType) {
+  var expr = switch type {
+    case CmdrString: macro value;
+    case CmdrInt: macro Std.parseInt(value);
+    case CmdrFloat: macro Std.parseFloat(value);
+    case CmdrBool: macro value == 'true';
+  }
+  return macro try $expr catch (e) throw new cmdr.internal.CmdrParseException(e.message);
+}
+
+private function createRouter(
+  commands:Array<CommandInfo>,
+  flags:Array<FlagInfo>,
+  defaultCommand:CommandInfo
+):Expr {
+  var flags = flags.map(createFlagParser);
+  var routes = commands.map(createCommandRoute);
+
+  return macro @:mergeBlock {
+    try {
+      @:mergeBlock $b{flags};
+      var __command = input.getArguments()[0];
+      @:mergeBlock $b{routes};
+      ${createCommandParser(defaultCommand)}
+    } catch (e:cmdr.internal.CmdrParseException) {
+      output.error(e.message);
+      output.writeLn(getDocs());
+      finish(Failure(1));
+      return;
+    }
+  };
+}
+
+private function createCommandRoute(command:CommandInfo) {
+  var name = command.name;
+  var parser = createCommandParser(command);
+  return macro if (__command == $v{name}) {
+    ${parser};
+    return;
+  }
+}
+
+private function createDocSpec(cls:ClassType, flags:Array<FlagInfo>, commands:Array<CommandInfo>) {
+  var docFlags = flags.map(createFlagDoc);
+  var docCommands = commands.map(createCommandDoc);
+  var doc = cls.doc != null 
+    ? cls.doc.trim()
+    : null;
   
-  return switch info.defaultValue {
-    case null: '[$name <$placeholderName>]';
-    case _: '[$name [$placeholderName]]';
-  }
+  return macro ({
+    doc: $v{doc},
+    commands: [ $a{docCommands} ],
+    flags: [ $a{docFlags} ]
+  }:cmdr.DocSpec);
 }
 
-private function createOptionParser(info:OptionInfo) {
-  var defaultBranch = info.defaultValue != null
-    ? macro ${info.defaultValue}
-    : switch info.type {
-      case CmdBool:
-        macro false;
-      default:
-        macro throw 'The option ' + $v{info.name} + ' is required';
+private function createFlagDoc(flag:FlagInfo):Expr {
+  var names = [ flag.name, flag.short ]
+    .filter(f -> f != null)
+    .map(s -> macro $v{s});
+  var aliases = [ flag.alias ]  
+    .filter(f -> f != null)
+    .map(s -> macro $v{s});
+
+  return macro ({
+    aliases: [ $a{aliases} ],
+    names: [ $a{names} ],
+    doc: $v{flag.doc == null ? '(no documentation)' : flag.doc.trim()}
+  }:cmdr.DocSpec.DocFlag);
+}
+
+private function createCommandDoc(command:CommandInfo):Expr {
+  var names = [ macro $v{command.name} ];
+  var args:Array<Expr> = switch command.kind {
+    case CmdFunction(params): params.map(param -> macro ({
+      name: $v{param.name},
+      isOptional: $v{param.def != null}
+    }:cmdr.DocSpec.DocCommandArg));
+    case CmdSubCommand: [];
+  }
+
+  if (command.alias != null) names.push(macro $v{command.alias});
+
+  return macro ({
+    names: [ $a{names} ],
+    isDefault: $v{command.isDefault},
+    isSub: $v{ command.kind == CmdSubCommand },
+    args: [ $a{args} ],
+    doc: $v{ command.doc == null ? '(no documentation)' : command.doc.trim() }
+  }:cmdr.DocSpec.DocCommand);
+}
+
+private function getAlias(field:Field):String {
+  var aliasMeta = field.getMeta(ALIAS);
+  return aliasMeta == null 
+    ? null
+    : switch aliasMeta.params {
+        case [ name ]: name.extractString().toFlagName();
+        default: 
+          Context.error('Expected 1 argument', aliasMeta.pos);
+          '';
     }
-
-  var valueParser = switch info.type {
-    case CmdString: macro value;
-    case CmdInt: macro Std.parseInt(value);
-    case CmdFloat: macro Std.parseFloat(value);
-    case CmdBool: macro true;
-  }
-
-  return macro {
-    switch input.findOption($v{info.name}, $v{info.shortName}) {
-      case Some(value):
-        $valueParser;
-      case None: 
-        $defaultBranch;
-    }
-  }
 }
 
-private function extractString(expr:Expr) {
-  return switch expr.expr {
-    case EConst(CString(s, _)): 
-      s;
+private function extractCmdrType(t:ComplexType, pos:Position) {
+  return switch t {
+    case null:
+      Context.error('Fields cannot infer their types -- you must provide one', pos);
+      null;
+    case macro:String:
+      CmdrString;
+    case macro:Int:
+      CmdrInt;
+    case macro:Float:
+      CmdrFloat;
+    case macro:Bool:
+      CmdrBool;
     default:
-      Context.error('Expected a string', expr.pos);
-      '';
+      Context.error('Fields may only be Strings, Ints, Floats or Bools', pos);
+      null;
   }
-}
-
-private function extractInt(expr:Expr) {
-  return switch expr.expr {
-    case EConst(CInt(v)): 
-      Std.parseInt(v);
-    default:
-      Context.error('Expected an Int', expr.pos);
-      0;
-  }
-}
-
-private function prepareName(name:String) {
-  name = name.trim();
-  if (name.startsWith('--')) return name;
-  return '--$name';
-}
-
-private function prepareShortName(name:Null<String>) {
-  if (name == null) return null;
-  
-  name = name.trim();
-
-  if (name.startsWith('-')) return name;
-
-  return '-$name';
 }

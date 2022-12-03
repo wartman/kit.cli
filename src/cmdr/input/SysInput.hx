@@ -1,6 +1,6 @@
 package cmdr.input;
 
-class SysInput extends ArrayInput {
+class SysInput extends ParsedInput {
   public function new() {
     super(Sys.args());
   }
