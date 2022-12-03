@@ -1,5 +1,7 @@
 package cmdr.output;
 
+using cmdr.StyleTools;
+
 class SysOutput implements Output {
   public function new() {}
 
@@ -14,8 +16,10 @@ class SysOutput implements Output {
   }
 
   public function error(message:String) {
-    // todo: style this
-    writeLn('Error: ' + message);
+    writeLn('')
+      .write('    ')
+      .write(' Error '.backgroundColor(Red))
+      .writeLn(' ${message}');
     return this;
   }
 

@@ -23,7 +23,6 @@ enum CmdrType {
 typedef FlagInfo = {
   public final field:Field;
   public final name:String;
-  public final short:Null<String>;
   public final alias:Null<String>;
   public final doc:Null<String>;
   public final def:Null<Expr>;
@@ -69,6 +68,8 @@ function build() {
   var router = createRouter(commands, flags, defaultCommand);
   var spec = createDocSpec(cls, flags, commands.concat([ defaultCommand ]));
 
+  validate(flags, commands);
+
   fields.add(macro class {
     @:noCompletion var backing_input:Null<cmdr.Input> = null;
     public var input(get, never):cmdr.Input;
@@ -110,6 +111,30 @@ function build() {
   return fields;
 }
 
+private function validate(flags:Array<FlagInfo>, commands:Array<CommandInfo>) {
+  var existingNames:Array<String> = [];
+
+  for (flag in flags) {
+    if (existingNames.contains(flag.name)) {
+      Context.error('Name collision: ${flag.name} already exists', flag.field.pos);
+    }
+    if (flag.alias != null && existingNames.contains(flag.alias)) {
+      Context.error('Name collision: ${flag.alias} already exists', flag.field.pos);
+    }
+    existingNames = existingNames.concat([ flag.name, flag.alias ].filter(n -> n != null));
+  }
+
+  for (command in commands) {
+    if (existingNames.contains(command.name)) {
+      Context.error('Name collision: ${command.name} already exists', command.field.pos);
+    }
+    if (command.alias != null && existingNames.contains(command.alias)) {
+      Context.error('Name collision: ${command.alias} already exists', command.field.pos);
+    }
+    existingNames = existingNames.concat([ command.name, command.alias ].filter(n -> n != null));
+  }
+}
+
 private function extractFlagInto(field:Field):FlagInfo {
   if (field.access.contains(AFinal)) {
     Context.error('$FLAG fields cannot be final', field.pos);
@@ -118,23 +143,25 @@ private function extractFlagInto(field:Field):FlagInfo {
   return switch field.kind {
     case FVar(t, e):
       var flagMeta = field.getMeta(FLAG);
-      var name = field.name.toFlagName();
-      var short = flagMeta == null
-        ? field.name.charAt(0).toLowerCase().toShortName()
-        : switch flagMeta.params {
-          case [ name ]: name.extractString().toShortName();
-          case []: field.name.charAt(0).toLowerCase().toShortName();
-          default:
-            Context.error('Too many arguments', flagMeta.pos);
+      var name = flagMeta != null
+        ? switch flagMeta.params {
+          case [ name ]: name.extractString().toFlagName();
+          case []: field.name.toFlagName();
+          default: 
+            Context.error('Expened 0-1 params', flagMeta.pos);
             '';
         }
+        : field.name.toFlagName();
       var doc = field.doc;
+      var alias = switch getAlias(field) {
+        case null: field.name.charAt(0).toLowerCase().toShortName();
+        case name: name.toShortName();
+      }
 
       {
         field: field,
         name: name,
-        short: short,
-        alias: getAlias(field),
+        alias: alias,
         doc: doc,
         def: e,
         type: extractCmdrType(t, field.pos)
@@ -158,7 +185,7 @@ private function createFlagParser(info:FlagInfo):Expr {
   var parser = createCmdrTypeParser(info.type);
   var name = info.field.name;
 
-  return macro this.$name = switch input.findFlag($v{info.name}, $v{info.short}) {
+  return macro this.$name = switch input.findFlag($v{info.name}, $v{info.alias}) {
     case Some(value): $parser;
     case None: $defaultBranch;
   }
@@ -313,10 +340,10 @@ private function createDocSpec(cls:ClassType, flags:Array<FlagInfo>, commands:Ar
 }
 
 private function createFlagDoc(flag:FlagInfo):Expr {
-  var names = [ flag.name, flag.short ]
+  var names = [ flag.name, flag.alias ]
     .filter(f -> f != null)
     .map(s -> macro $v{s});
-  var aliases = [ flag.alias ]  
+  var aliases = [ flag.alias ]
     .filter(f -> f != null)
     .map(s -> macro $v{s});
 
@@ -348,12 +375,12 @@ private function createCommandDoc(command:CommandInfo):Expr {
   }:cmdr.DocSpec.DocCommand);
 }
 
-private function getAlias(field:Field):String {
+private function getAlias(field:Field):Null<String> {
   var aliasMeta = field.getMeta(ALIAS);
   return aliasMeta == null 
     ? null
     : switch aliasMeta.params {
-        case [ name ]: name.extractString().toFlagName();
+        case [ name ]: name.extractString();
         default: 
           Context.error('Expected 1 argument', aliasMeta.pos);
           '';
