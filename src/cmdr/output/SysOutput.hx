@@ -18,7 +18,7 @@ class SysOutput implements Output {
   public function error(message:String) {
     writeLn('')
       .write('    ')
-      .write(' Error '.backgroundColor(Red))
+      .write(' Error '.bold().backgroundColor(Red))
       .writeLn(' ${message}');
     return this;
   }

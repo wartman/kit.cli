@@ -310,7 +310,7 @@ private function createRouter(
     } catch (e:cmdr.internal.CmdrParseException) {
       output.error(e.message);
       output.writeLn(getDocs());
-      finish(Failure(1));
+      finish(1);
       return;
     }
   };

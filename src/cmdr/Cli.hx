@@ -21,9 +21,15 @@ class Cli {
 
   function handleResult(result:Result) {
     switch result {
-      case Success: output.exit(0);
-      case Failure(code): output.exit(code);
-      case Async(handler): handler(handleResult);
+      case Result.Success: 
+        output.exit(0);
+      case Result.Failure(code, null): 
+        output.exit(code);
+      case Result.Failure(code, message):
+        output.error(message); 
+        output.exit(code);
+      case Result.Async(handler): 
+        handler(handleResult);
     }
   }
 }

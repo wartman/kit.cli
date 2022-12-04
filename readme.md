@@ -39,14 +39,14 @@ class Greeter implements Command {
       .write(person.bold().backgroundColor(White))
       .write(' who is located in the ')
       .writeLn(location);
-    return Success;
+    return 0;
   }
 
   /** Get a list of commands. **/
   @:command
   function help():Result {
     output.write(getDocs());
-    return Success;
+    return 0;
   }
 
   /** Greet everyone! **/
@@ -54,7 +54,7 @@ class Greeter implements Command {
   function defaultGreeting(person:String = null):Result {
     if (person != null) return greet(person);
     output.writeLn('$greeting $location');
-    return Success;
+    return 0;
   }
 }
 ```
