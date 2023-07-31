@@ -1,6 +1,5 @@
-import cmdr.*;
-
-using cmdr.StyleTools;
+using Kit;
+using kit.Cli;
 
 function main() {
   var cli = Cli.fromSys();
@@ -21,7 +20,7 @@ class Greeter implements Command {
 
   /** Greet a person! **/
   @:command('greet-person')
-  function greet(person:String):Result {
+  function greet(person:String):Task<Int> {
     output
       .write(greeting.color(Blue))
       .write(' ')
@@ -33,14 +32,14 @@ class Greeter implements Command {
 
   /** Get a list of commands. **/
   @:command
-  function help():Result {
+  function help():Task<Int> {
     output.write(getDocs());
     return 0;
   }
 
   /** Greet everyone! **/
   @:defaultCommand
-  function defaultGreeting(person:String = null):Result {
+  function defaultGreeting(person:String = null):Task<Int> {
     if (person != null) return greet(person);
     output.writeLn('$greeting $location');
     return 0;

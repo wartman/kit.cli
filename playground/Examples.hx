@@ -1,7 +1,6 @@
-import cmdr.*;
-
 using Lambda;
-using cmdr.StyleTools;
+using Kit;
+using kit.Cli;
 
 function main() {
   var cli = Cli.fromSys();
@@ -21,26 +20,25 @@ class App implements Command {
     This command will print whatever you give it.
   **/
   @:command
-  public function other(bar:String = ''):Result {
+  public function other(bar:String = ''):Task<Int> {
     if (help) {
       output.write(getDocs());
       return 0;
     }
 
-    return (done:(result:Result)->Void) -> {
-      output
-        .writeLn('We can do fun stuff with styles: '.underscore())
-        .write(' This has a background '.backgroundColor(White).color(Blue).bold())
-        .writeLn(bar.color(Red).bold());
-      done(0);
-    };
+    output
+      .writeLn('We can do fun stuff with styles: '.underscore())
+      .write(' This has a background '.backgroundColor(White).color(Blue).bold())
+      .writeLn(bar.color(Red).bold());
+
+    return 0;
   }
 
   /**
     This is a simple app to explain how things work.
   **/
   @:defaultCommand
-  public function docs():Result {
+  public function docs():Task<Int> {
     output.write(getDocs());
     return 0;
   }
@@ -59,7 +57,7 @@ class SubCommand implements Command {
     This also just prints foo.
   **/
   @:defaultCommand
-  function doesAThing(foo:String, bin:String = 'ok'):Result {
+  function doesAThing(foo:String, bin:String = 'ok'):Task<Int> {
     output.writeLn(prefix + ' ' + foo + bin + ' ' + suffix);
     return 0;
   }

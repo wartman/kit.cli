@@ -1,6 +1,7 @@
 -cp src
 -cp playground
 
+-lib kit
 -lib hxnodejs
 
 -D js-es=6
