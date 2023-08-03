@@ -1,0 +1,10 @@
+{
+  "name": "kit.cli",
+  "classPath": "src",
+  "contributors": ["wartman"],
+  "description": "CLI apps for Haxe",
+  "license": "MIT",
+  "releasenote": "First release",
+  "version": "0.0.1",
+  "dependencies": {}
+}
