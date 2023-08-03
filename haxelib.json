@@ -6,5 +6,7 @@
   "license": "MIT",
   "releasenote": "First release",
   "version": "0.0.1",
-  "dependencies": {}
+  "dependencies": {
+    "kit": "0.0.1"
+  }
 }
