@@ -81,11 +81,8 @@ class DefaultFormatter implements DocFormatter {
 
   function formatCommand(command:DocCommand, commandIndent:Int) {
     var name = getCommandName(command);
-    return indent(
-      name.lpad(' ', commandIndent) + ' : '
-        + indent(command.doc, commandIndent + 3).trim(),
-      6
-    );
+    var doc = command.doc.split('\n').map(s -> s.trim()).join('\n');
+    return indent(name.lpad(' ', commandIndent) + ' : ' + indent(doc, commandIndent + 3).trim(), 6);
   }
 
   function getFlagIndent(flags:Array<DocFlag>) {

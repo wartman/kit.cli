@@ -18,6 +18,8 @@ class App implements Command {
 
   /**
     This command will print whatever you give it.
+
+    That's all.
   **/
   @:command
   public function other(bar:String = ''):Task<Int> {
