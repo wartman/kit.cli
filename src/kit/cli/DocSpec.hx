@@ -16,7 +16,7 @@ typedef DocCommand = {
 
 typedef DocCommandArg = {
 	public final name:String;
-	public final isOptional:Bool;	
+	public final isOptional:Bool;
 }
 
 typedef DocFlag = {

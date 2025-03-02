@@ -1,15 +1,16 @@
 package kit.cli.style;
 
 class ForegroundColorStyle implements Style {
-  public final name:String;
-  final color:Color;
+	public final name:String;
 
-  public function new(name, color) {
-    this.name = name;
-    this.color = color;
-  }
+	final color:Color;
 
-  public function apply(value:StyledText):Void{
-    value.setForeground('3' + color);
-  }
+	public function new(name, color) {
+		this.name = name;
+		this.color = color;
+	}
+
+	public function apply(value:StyledText):Void {
+		value.setForeground('3' + color);
+	}
 }

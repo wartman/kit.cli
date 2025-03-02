@@ -1,126 +1,127 @@
 package kit.cli.format;
 
-import kit.cli.DocSpec;
+import kit.cli.SpecFormatter;
+import kit.cli.Spec;
 
+using Kit;
 using Lambda;
 using StringTools;
 using kit.cli.StyleTools;
 
-class DefaultFormatter implements DocFormatter {
-  public function new() {}
+class DefaultFormatter implements SpecFormatter {
+	public function new() {}
 
-  public function format(spec:DocSpec):String {
-    var out = new StringBuf();
-    var commands = spec.commands.filter(c -> !c.isDefault);
-    var defaultCommand = spec.commands.find(c -> c.isDefault);
+	public function format(spec:Spec):String {
+		var out = new StringBuf();
 
-    inline function addLine(v:String) out.add(v + '\n');
+		inline function addLine(v:String) out.add(v + '\n');
 
-    addLine('');
-    switch cleanup(spec.doc) {
-      case null:
-      case doc: addLine(doc + '\n');
-    }
+		var flags = spec.filter(entry -> switch entry {
+			case SpecFlag(_, _, _): true;
+			default: false;
+		});
+		var defaultCommands = spec.filter(entry -> switch entry {
+			case SpecCommand(_, _, _, _, true): true;
+			default: false;
+		});
+		var commands = spec.filter(entry -> switch entry {
+			case SpecCommand(_, _, _, _, _): true;
+			default: false;
+		});
 
-    if (defaultCommand != null) {
-      var args = getCommandArgs(defaultCommand);
-      if (args.length > 0) {
-        addLine(indent(args + ' : ' + defaultCommand.doc, 4));
-      } else {
-        addLine(indent(defaultCommand.doc, 4));
-      }
-      addLine('');
-    }
+		addLine('');
 
-    if (commands.length > 0) {
-      var len = getCommandIndent(commands);
+		switch defaultCommands {
+			case [SpecCommand(_, _, doc, _, _)]:
+				addLine(doc + '\n');
+			default:
+		}
 
-      addLine(indent('Subcommands:', 4).bold());
-      
-      for (command in commands) {
-        addLine(formatCommand(command, len));
-      }
-    }
+		if (commands.length > 0) {
+			var len = getEntryIndent(commands);
 
-    if (spec.flags.length > 0) {
-      var len = getFlagIndent(spec.flags);
-      
-      addLine('');
-      addLine(indent('Flags:', 4).bold());
+			addLine(indent('Subcommands:', 4).bold());
 
-      for (flag in spec.flags) {
-        addLine(formatFlag(flag, len));
-      }
-    }
+			for (command in commands) {
+				addLine(formatEntry(command, len));
+			}
+		}
 
-    return out.toString();
-  }
+		if (flags.length > 0) {
+			var len = getEntryIndent(flags);
 
-  function getCommandIndent(commands:Array<DocCommand>) {
-    return commands.fold((command, indent) -> {
-      var len = getCommandName(command).length;
-      if (len > indent) return len;
-      return indent;
-    }, 0);
-  }
+			addLine('');
+			addLine(indent('Flags:', 4).bold());
 
-  function getCommandArgs(command:DocCommand) {
-    return command.args.map(arg -> switch arg.isOptional {
-      case true: '[${arg.name}]';
-      case false: '<${arg.name}>';
-    }).join(', ');
-  }
+			for (flag in flags) {
+				addLine(formatEntry(flag, len));
+			}
+		}
 
-  function getCommandName(command:DocCommand) {
-    var args = getCommandArgs(command);
-    var names = command.names.join(', ');
-    
-    if (args.length > 0) return names + ' ' + args;
-    return names;
-  }
+		return out.toString();
+	}
 
-  function formatCommand(command:DocCommand, commandIndent:Int) {
-    var name = getCommandName(command);
-    var doc = command.doc.split('\n').map(s -> s.trim()).join('\n');
-    return indent(name.lpad(' ', commandIndent) + ' : ' + indent(doc, commandIndent + 3).trim(), 6);
-  }
+	function formatEntry(entry:SpecEntry, entryIndent:Int):String {
+		var outName = formatEntryName(entry);
+		return switch entry {
+			case SpecCommand(_, args, doc, isSub, isDefault):
+				var outDoc = cleanup(doc);
+				indent(outName.lpad(' ', entryIndent) + ' : ' + indent(outDoc, entryIndent + 3).trim(), 6);
 
-  function getFlagIndent(flags:Array<DocFlag>) {
-    return flags.fold((flag, indent) -> {
-      var len = getFlagName(flag).length;
-      if (len > indent) return len;
-      return indent;
-    }, 0);
-  }
+			case SpecFlag(_, aliases, doc):
+				var outDoc = doc?.split('\n')?.map(s -> s.trim()).join('\n') ?? '';
+				indent(
+					outName.lpad(' ', entryIndent) + ' : ' + indent(doc, entryIndent + 3).trim(),
+					6
+				);
+		}
+	}
 
-  function getFlagName(flag:DocFlag) {
-    return flag.names.join(', ');
-  }
+	function formatArgs(args:Array<CommandArg>) {
+		return args.map(arg -> switch arg.isOptional {
+			case true: '[${arg.name}]';
+			case false: '<${arg.name}>';
+		}).join(', ');
+	}
 
-  function formatFlag(flag:DocFlag, flagIndent:Int) {
-    var name = getFlagName(flag);
-    var doc = flag.doc.split('\n').map(s -> s.trim()).join('\n');
-    return indent(
-      name.lpad(' ', flagIndent) + ' : ' + indent(doc, flagIndent + 3).trim(),
-      6
-    );
-  }
+	function getEntryIndent(entries:Array<SpecEntry>) {
+		return entries.fold((entry, indent) -> {
+			var len = formatEntryName(entry).length;
+			if (len > indent) return len;
+			return indent;
+		}, 0);
+	}
 
-  function indent(value:String, level:Int) {
-    return value
-      .split('\n')
-      .map(part -> ''.lpad(' ', level) + part)
-      .join('\n');
-  }
+	function formatEntryName(entry:SpecEntry) {
+		return switch entry {
+			case SpecCommand(names, args, _, _, isDefault):
+				var outArgs = formatArgs(args);
+				var outNames = isDefault ? '*' : names.join(', ');
 
-  function cleanup(value:String) {
-    if (value == null) return null;
+				if (outArgs.length > 0) return outNames + ' ' + outArgs;
+				outNames;
+			case SpecFlag(names, _, _):
+				names.join(', ');
+		}
+	}
 
-    var lines = value.split('\n').map(StringTools.trim);
+	function indent(value:String, level:Int) {
+		if (value == null) return '';
 
-    while (lines[0] == '') lines.shift();
-    while (lines[lines.length - 1] == '') lines.pop();
+		return value
+			.split('\n')
+			.map(part -> ''.lpad(' ', level) + part)
+			.join('\n');
+	}
 
-    return lines.join('\n');
-  }
+	function cleanup(value:String) {
+		if (value == null) return '';
+
+		var lines = value.split('\n').map(StringTools.trim);
+
+		while (lines[0] == '') lines.shift();
+		while (lines[lines.length - 1] == '') lines.pop();
+
+		return lines.join('\n');
+	}
 }

@@ -1,6 +1,6 @@
 package kit.cli;
 
 interface Style {
-  public final name:String;
-  public function apply(value:StyledText):Void;
+	public final name:String;
+	public function apply(value:StyledText):Void;
 }
