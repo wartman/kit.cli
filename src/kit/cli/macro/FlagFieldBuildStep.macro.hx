@@ -26,14 +26,14 @@ class FlagFieldBuildStep implements BuildStep {
 				}
 
 				var name = field.name;
-				var flagName = meta != null ? switch meta.params {
-					case [name]: toFlagName(name.extractString());
-					case []: toFlagName(field.name);
-					default:
-						meta.pos.error('Expected 0-1 params');
+				var flagName = toFlagName(field.name);
+				var flagShortName = switch meta.params {
+					case [name]: toShortName(name.extractString(), name.pos);
+					case []: null;
+					case other:
+						other[1].pos.error('Too many arguments');
 						'';
-				} : toFlagName(field.name);
-				var flagAlias = field.getAlias();
+				}
 				var doc = field.doc == null ? '(no documentation)' : field.doc;
 				var defaultBranch:Expr = if (e == null) switch t {
 					case macro :Bool:
@@ -44,25 +44,35 @@ class FlagFieldBuildStep implements BuildStep {
 					e;
 				}
 				var parser = t.createTypeParser(field.pos);
-				// @todo
-				// var alias = switch getAlias(field) {
-				// 	case null: field.name.charAt(0).toLowerCase().toShortName();
-				// 	case name: name.toShortName();
-				// }
-				var specNames = [flagName, flagAlias].filter(f -> f != null).map(s -> macro $v{s});
-				var specAliases = [flagAlias].filter(f -> f != null).map(s -> macro $v{s});
+				var specNames = [macro $v{flagName}];
+				var specShortNames = flagShortName != null ? [macro $v{flagShortName}] : [];
 
-				builder.specHook().addExpr(macro kit.cli.Spec.SpecEntry.SpecFlag(
-					[$a{specNames}],
-					[$a{specAliases}],
-					$v{doc}
-				));
+				switch field.getAlias().map(toFlagName) {
+					case Some(alias):
+						var storedDefaultBranch = defaultBranch;
+						specNames.push(macro $v{alias});
+
+						defaultBranch = macro {
+							this.$name = switch input.findFlag($v{alias}) {
+								case Some(value): $parser;
+								case None: $storedDefaultBranch;
+							}
+						};
+					case None:
+				}
+
 				builder.processHook().addExpr(macro {
-					this.$name = switch input.findFlag($v{flagName}, $v{flagAlias}) {
+					this.$name = switch input.findFlag($v{flagName}, $v{flagShortName}) {
 						case Some(value): $parser;
 						case None: $defaultBranch;
 					}
 				});
+
+				builder.specHook().addExpr(macro kit.cli.Spec.SpecEntry.SpecFlag(
+					[$a{specNames}],
+					[$a{specShortNames}],
+					$v{doc}
+				));
 
 			default:
 				field.pos.error(':flag must be a var');
@@ -76,10 +86,12 @@ class FlagFieldBuildStep implements BuildStep {
 		return '--$name';
 	}
 
-	function toShortName(name:Null<String>) {
-		if (name == null) return null;
-		name = name.trim();
+	function toShortName(name:Null<String>, pos:Position) {
 		if (name.startsWith('-')) return name;
+		name = name.trim();
+		if (name.length > 1) {
+			pos.error('Expected a single character');
+		}
 		return '-$name';
 	}
 }

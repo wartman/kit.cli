@@ -16,31 +16,36 @@ class DefaultFormatter implements SpecFormatter {
 
 		inline function addLine(v:String) out.add(v + '\n');
 
-		var flags = spec.filter(entry -> switch entry {
-			case SpecFlag(_, _, _): true;
-			default: false;
-		});
-		var defaultCommands = spec.filter(entry -> switch entry {
-			case SpecCommand(_, _, _, _, true): true;
-			default: false;
-		});
-		var commands = spec.filter(entry -> switch entry {
-			case SpecCommand(_, _, _, _, _): true;
-			default: false;
-		});
+		var flags = getFlags(spec);
+		var routes = getRoutes(spec);
+		var commands = getCommands(spec);
 
 		addLine('');
 
-		switch defaultCommands {
-			case [SpecCommand(_, _, doc, _, _)]:
-				addLine(doc + '\n');
+		switch getDefaultCommand(spec) {
+			case Some(SpecCommand(_, args, doc, _)):
+				switch args.length {
+					case 0:
+						addLine(doc.pipe(cleanup(_), indent(_, 4)));
+					default:
+						addLine(indent(formatArgs(args) + ' : ' + cleanup(doc), 4));
+				}
+				addLine('');
 			default:
+		}
+
+		if (routes.length > 0) {
+			addLine(indent('Subcommands:', 4).bold());
+
+			for (route in routes) {
+				addLine(formatEntry(route, 6));
+			}
 		}
 
 		if (commands.length > 0) {
 			var len = getEntryIndent(commands);
 
-			addLine(indent('Subcommands:', 4).bold());
+			addLine(indent('Commands:', 4).bold());
 
 			for (command in commands) {
 				addLine(formatEntry(command, len));
@@ -61,15 +66,57 @@ class DefaultFormatter implements SpecFormatter {
 		return out.toString();
 	}
 
+	function getFlags(spec:Spec) {
+		return spec.filter(entry -> switch entry {
+			case SpecFlag(_, _, _): true;
+			default: false;
+		});
+	}
+
+	function getRoutes(spec:Spec) {
+		return spec.filter(entry -> switch entry {
+			case SpecSub(_, _): true;
+			default: false;
+		});
+	}
+
+	function getCommands(spec:Spec) {
+		return spec.filter(entry -> switch entry {
+			case SpecCommand(_, _, _, false): true;
+			default: false;
+		});
+	}
+
+	function getDefaultCommand(spec:Spec) {
+		return spec.find(entry -> switch entry {
+			case SpecCommand(_, _, _, true): true;
+			default: false;
+		}).toMaybe();
+	}
+
 	function formatEntry(entry:SpecEntry, entryIndent:Int):String {
 		var outName = formatEntryName(entry);
 		return switch entry {
-			case SpecCommand(_, args, doc, isSub, isDefault):
+			case SpecCommand(_, args, doc, _):
 				var outDoc = cleanup(doc);
 				indent(outName.lpad(' ', entryIndent) + ' : ' + indent(outDoc, entryIndent + 3).trim(), 6);
-
-			case SpecFlag(_, aliases, doc):
-				var outDoc = doc?.split('\n')?.map(s -> s.trim()).join('\n') ?? '';
+			case SpecSub(subNames, spec):
+				var out = indent(subNames.join(', ').bold() + ' ', entryIndent);
+				out += indent(format(spec), entryIndent).trim() + '\n';
+				out;
+			// var sub = subNames[0] ?? '';
+			// var doc = getDefaultCommand(spec).map(entry -> {
+			// 	entry.extract(try SpecCommand(_, _, doc, _));
+			// 	doc;
+			// }).or('(no documentation)');
+			// var out = indent(outName.lpad(' ', entryIndent) + ' : ' + indent(doc, entryIndent + 3).trim(), 6);
+			// var subCommands = getCommands(spec).map(entry -> {
+			// 	entry.extract(try SpecCommand(names, args, doc, _));
+			// 	SpecCommand(names.map(name -> sub + ' ' + name), args, doc, false);
+			// }).map(entry -> formatEntry(entry, entryIndent));
+			// return [out].concat(subCommands).join('\n');
+			case SpecFlag(_, _, doc):
+				var outDoc = cleanup(doc);
 				indent(
 					outName.lpad(' ', entryIndent) + ' : ' + indent(doc, entryIndent + 3).trim(),
 					6
@@ -94,14 +141,32 @@ class DefaultFormatter implements SpecFormatter {
 
 	function formatEntryName(entry:SpecEntry) {
 		return switch entry {
-			case SpecCommand(names, args, _, _, isDefault):
+			case SpecCommand(names, args, _, _):
 				var outArgs = formatArgs(args);
-				var outNames = isDefault ? '*' : names.join(', ');
+				var outNames = names.join(', ');
 
 				if (outArgs.length > 0) return outNames + ' ' + outArgs;
 				outNames;
-			case SpecFlag(names, _, _):
-				names.join(', ');
+			case SpecSub(names, spec):
+				var outNames = names.join(', ');
+				var outArgs = spec
+					.find(entry -> switch entry {
+						case SpecCommand(_, _, _, true): true;
+						default: false;
+					})
+					.toMaybe()
+					.map(entry -> {
+						entry.extract(try SpecCommand(_, args, _, _));
+						args;
+					})
+					.map(formatArgs)
+					.or('');
+
+				if (outArgs.length > 0) return outNames + ' ' + outArgs;
+
+				outNames;
+			case SpecFlag(names, shortNames, _):
+				names.concat(shortNames ?? []).join(', ');
 		}
 	}
 

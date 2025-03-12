@@ -30,7 +30,7 @@ class CommandFieldBuildStep implements BuildStep {
 
 	function parseField(builder:ClassBuilder, field:Field, meta:MetadataEntry, isDefault:Bool) {
 		var name = field.name;
-		var commandAlias = field.getAlias();
+		var commandAlias = field.getAlias().unwrap();
 		var commandName = switch meta.params {
 			case null | []:
 				field.name;
@@ -51,20 +51,20 @@ class CommandFieldBuildStep implements BuildStep {
 
 		switch field.kind {
 			case FVar(t, e):
+				// @todo: check that t is a Command
+				if (isDefault) {
+					meta.pos.error('Subcommands cannot be default commands');
+				}
 				if (!field.access.contains(AFinal)) {
 					field.pos.error(':command fields must be final');
 				}
 				if (field.access.contains(AStatic)) {
 					field.pos.error(':command fields cannot be static');
 				}
-				var doc = field.doc;
 
-				builder.specHook().addExpr(macro kit.cli.Spec.SpecEntry.SpecCommand(
+				builder.specHook().addExpr(macro kit.cli.Spec.SpecEntry.SpecSub(
 					[$a{commandNames}],
-					[],
-					${doc == null ? macro '(no documentation)' : macro $v{doc}},
-					true,
-					$v{isDefault}
+					this.$name.getSpec(),
 				));
 				builder.routerHook().addExpr(macro {
 					if (${check}) {
@@ -74,11 +74,6 @@ class CommandFieldBuildStep implements BuildStep {
 						), output);
 					}
 				});
-				if (isDefault) {
-					builder.defaultRouteHook().addExpr(macro {
-						return this.$name.process(new kit.cli.input.ArrayInput(input.getFlags(), input.getArguments()), output);
-					});
-				}
 
 			case FFun(f):
 				var doc = field.doc;
@@ -111,7 +106,6 @@ class CommandFieldBuildStep implements BuildStep {
 					[$a{commandNames}],
 					[$a{argDocs}],
 					$v{doc == null ? '(no documentation)' : doc},
-					false,
 					$v{isDefault}
 				));
 

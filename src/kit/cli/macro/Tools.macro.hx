@@ -40,12 +40,12 @@ function createTypeParser(t:ComplexType, pos:Position) {
 	}
 }
 
-function getAlias(field:Field):Null<String> {
+function getAlias(field:Field):Maybe<String> {
 	var aliasMeta = field.getMetadata(':alias');
-	return aliasMeta == null ? null : switch aliasMeta.params {
+	return aliasMeta == null ? None : Some(switch aliasMeta.params {
 		case [name]: name.extractString();
 		default:
 			aliasMeta.pos.error('Expected 1 argument');
 			'';
-	}
+	});
 }

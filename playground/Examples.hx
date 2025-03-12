@@ -16,7 +16,7 @@ class App implements Command {
 	/**
 		This does nothing.
 	**/
-	@:flag('f') var foo:String = null;
+	@:flag('f') @:alias('bip') var foo:String = null;
 
 	/**
 		Get help for a given command
@@ -58,12 +58,21 @@ class App implements Command {
 }
 
 class SubCommand implements Command {
-	@:flag('f') var suffix:String = 'Ok!';
+	@:flag('s') var suffix:String = 'Ok!';
 
 	final prefix:String;
 
 	public function new(prefix) {
 		this.prefix = prefix;
+	}
+
+	/**
+		Does nothing
+	**/
+	@:command
+	function froop() {
+		output.write('Nothing');
+		return 0;
 	}
 
 	/**
