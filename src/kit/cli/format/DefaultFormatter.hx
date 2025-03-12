@@ -101,20 +101,9 @@ class DefaultFormatter implements SpecFormatter {
 				var outDoc = cleanup(doc);
 				indent(outName.lpad(' ', entryIndent) + ' : ' + indent(outDoc, entryIndent + 3).trim(), 6);
 			case SpecSub(subNames, spec):
-				var out = indent(subNames.join(', ').bold() + ' ', entryIndent);
-				out += indent(format(spec), entryIndent).trim() + '\n';
+				var out = indent(subNames.join(', ').bold() + ': ', entryIndent);
+				out += indent(format(spec), entryIndent);
 				out;
-			// var sub = subNames[0] ?? '';
-			// var doc = getDefaultCommand(spec).map(entry -> {
-			// 	entry.extract(try SpecCommand(_, _, doc, _));
-			// 	doc;
-			// }).or('(no documentation)');
-			// var out = indent(outName.lpad(' ', entryIndent) + ' : ' + indent(doc, entryIndent + 3).trim(), 6);
-			// var subCommands = getCommands(spec).map(entry -> {
-			// 	entry.extract(try SpecCommand(names, args, doc, _));
-			// 	SpecCommand(names.map(name -> sub + ' ' + name), args, doc, false);
-			// }).map(entry -> formatEntry(entry, entryIndent));
-			// return [out].concat(subCommands).join('\n');
 			case SpecFlag(_, _, doc):
 				var outDoc = cleanup(doc);
 				indent(

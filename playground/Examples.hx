@@ -58,6 +58,9 @@ class App implements Command {
 }
 
 class SubCommand implements Command {
+	/**
+		Set the suffix
+	**/
 	@:flag('s') var suffix:String = 'Ok!';
 
 	final prefix:String;
@@ -67,11 +70,11 @@ class SubCommand implements Command {
 	}
 
 	/**
-		Does nothing
+		Get help.
 	**/
 	@:command
-	function froop() {
-		output.write('Nothing');
+	function help() {
+		output.write(getDocs());
 		return 0;
 	}
 
