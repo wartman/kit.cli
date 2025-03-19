@@ -17,7 +17,7 @@ class DefaultFormatter implements SpecFormatter {
 		inline function addLine(v:String) out.add(v + '\n');
 
 		var flags = getFlags(spec);
-		var routes = getRoutes(spec);
+		var subcommands = getSubcommands(spec);
 		var commands = getCommands(spec);
 
 		addLine('');
@@ -34,11 +34,11 @@ class DefaultFormatter implements SpecFormatter {
 			default:
 		}
 
-		if (routes.length > 0) {
+		if (subcommands.length > 0) {
 			addLine(indent('Subcommands:', 4).bold());
 
-			for (route in routes) {
-				addLine(formatEntry(route, 6));
+			for (entry in subcommands) {
+				addLine(formatEntry(entry, 6));
 			}
 		}
 
@@ -47,8 +47,8 @@ class DefaultFormatter implements SpecFormatter {
 
 			addLine(indent('Commands:', 4).bold());
 
-			for (command in commands) {
-				addLine(formatEntry(command, len));
+			for (entry in commands) {
+				addLine(formatEntry(entry, len));
 			}
 		}
 
@@ -73,7 +73,7 @@ class DefaultFormatter implements SpecFormatter {
 		});
 	}
 
-	function getRoutes(spec:Spec) {
+	function getSubcommands(spec:Spec) {
 		return spec.filter(entry -> switch entry {
 			case SpecSub(_, _): true;
 			default: false;
