@@ -68,7 +68,7 @@ class CommandBuilder implements BuildBundle implements BuildStep {
 				} catch (e:kit.cli.parse.ParseException) {
 					output.error(e.message);
 					output.writeLn(getDocs());
-					return kit.Task.resolve(1);
+					return kit.Task.ok(1);
 				}
 			}
 
