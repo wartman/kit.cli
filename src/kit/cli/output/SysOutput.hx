@@ -26,4 +26,17 @@ class SysOutput implements Output {
 	public function exit(code:Int = 0) {
 		Sys.exit(code);
 	}
+
+	public function clear(replaceWith:String = '') {
+		// note: using ANSI CSI
+		write('\033[2K\033[200D' + replaceWith);
+	}
+
+	public function hideCursor() {
+		write('\033[?25l');
+	}
+
+	public function showCursor() {
+		write('\033[?25h');
+	}
 }
