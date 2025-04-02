@@ -17,7 +17,7 @@ private class TaskConsole implements Console {
 
 	public function write(value:String):Console {
 		spinner.stop();
-		console.writeLine(value);
+		console.write(value);
 		spinner.start();
 		return this;
 	}

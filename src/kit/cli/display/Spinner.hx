@@ -16,16 +16,16 @@ class Spinner {
 	public function start() {
 		if (timer != null) stop();
 		console.hideCursor();
+
+		// Ensure we don't eat the previous character:
+		console.write(getCurrentFrame());
+
 		timer = new Timer(80);
 		timer.run = render;
 	}
 
 	public function render() {
-		currentFrame++;
-		if (currentFrame > frames.length - 1) {
-			currentFrame = 0;
-		}
-		var frame = frames[currentFrame];
+		var frame = getCurrentFrame();
 		console.setCursorPosition(frame.length * -1).write(frame);
 	}
 
@@ -39,5 +39,14 @@ class Spinner {
 
 	public function isRunning() {
 		return timer != null;
+	}
+
+	function getCurrentFrame() {
+		currentFrame++;
+		if (currentFrame > frames.length - 1) {
+			currentFrame = 0;
+		}
+		var frame = frames[currentFrame];
+		return frame;
 	}
 }
