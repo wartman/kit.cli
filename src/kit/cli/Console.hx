@@ -4,6 +4,7 @@ interface Console {
 	public function write(value:String):Console;
 	public function writeLine(value:String):Console;
 	public function setCursorPosition(x:Int, ?y:Int):Console;
+	public function moveCursor(pos:Int):Console;
 	public function error(message:String):Console;
 	public function clear():Console;
 	public function hideCursor():Console;

@@ -26,7 +26,7 @@ class Spinner {
 
 	public function render() {
 		var frame = getCurrentFrame();
-		console.setCursorPosition(frame.length * -1).write(frame);
+		console.moveCursor(frame.length * -1).write(frame);
 	}
 
 	public function stop() {

@@ -34,6 +34,11 @@ private class TaskConsole implements Console {
 		return this;
 	}
 
+	public function moveCursor(pos:Int):Console {
+		console.moveCursor(pos);
+		return this;
+	}
+
 	public function error(message:String):Console {
 		spinner.stop();
 		console.error(message);

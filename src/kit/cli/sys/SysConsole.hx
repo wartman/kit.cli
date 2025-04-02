@@ -17,12 +17,16 @@ class SysConsole implements Console {
 
 	public function setCursorPosition(x:Int, ?y:Int):Console {
 		// Zero idea if this is correct
-		if (y != null) {
-			write('\033[${y};${x}H');
-		} else if (x > 0) {
-			write('\033[${x}C');
+		write('\033[${y ?? 0};${x}H');
+
+		return this;
+	}
+
+	public function moveCursor(pos:Int):Console {
+		if (pos > 0) {
+			write('\033[${pos}C');
 		} else {
-			write('\033[${x * -1}D');
+			write('\033[${pos * -1}D');
 		}
 
 		return this;
