@@ -32,19 +32,19 @@ class Greeter implements Command {
   /** Greet a person! **/
   @:command('greet-person')
   function greet(person:String):Task<Int> {
-    output
+    console
       .write(greeting.color(Blue))
       .write(' ')
       .write(person.bold().backgroundColor(White))
       .write(' who is located in the ')
-      .writeLn(location);
+      .writeLine(location);
     return 0;
   }
 
   /** Get a list of commands. **/
   @:command
   function help():Task<Int> {
-    output.write(getDocs());
+    console.write(getDocs());
     return 0;
   }
 
@@ -52,7 +52,7 @@ class Greeter implements Command {
   @:defaultCommand
   function defaultGreeting(person:String = null):Task<Int> {
     if (person != null) return greet(person);
-    output.writeLn('$greeting $location');
+    console.writeLine('$greeting $location');
     return 0;
   }
 }

@@ -53,7 +53,7 @@ class FlagFieldBuildStep implements BuildStep {
 						specNames.push(macro $v{alias});
 
 						defaultBranch = macro {
-							this.$name = switch input.findFlag($v{alias}) {
+							this.$name = switch arguments.findFlag($v{alias}) {
 								case Some(value): $parser;
 								case None: $storedDefaultBranch;
 							}
@@ -62,7 +62,7 @@ class FlagFieldBuildStep implements BuildStep {
 				}
 
 				builder.processHook().addExpr(macro {
-					this.$name = switch input.findFlag($v{flagName}, $v{flagShortName}) {
+					this.$name = switch arguments.findFlag($v{flagName}, $v{flagShortName}) {
 						case Some(value): $parser;
 						case None: $defaultBranch;
 					}

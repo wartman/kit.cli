@@ -6,8 +6,8 @@
   ],
   "description": "CLI apps for Haxe",
   "license": "MIT",
-  "releasenote": "First release",
-  "version": "0.0.2",
+  "releasenote": "Api change",
+  "version": "0.0.3",
   "dependencies": {
     "kit": "0.3.1"
   }

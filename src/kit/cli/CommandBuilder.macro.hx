@@ -30,44 +30,44 @@ class CommandBuilder implements BuildBundle implements BuildStep {
 		var spec = builder.specHook().getExprs();
 
 		builder.add(macro class {
-			@:noCompletion var backing_input:Null<kit.cli.Input> = null;
+			@:noCompletion var backing_arguments:Null<kit.cli.Arguments> = null;
 
-			public var input(get, never):kit.cli.Input;
+			public var arguments(get, never):kit.cli.Arguments;
 
-			function get_input():kit.cli.Input {
-				if (backing_input == null) {
-					throw 'Attempted to access Input before the Command was ready.'
+			function get_arguments():kit.cli.Arguments {
+				if (backing_arguments == null) {
+					throw 'Attempted to access Arguments before the Command was ready.'
 						+ ' Generally, you should only be using kit.cli.Command inside'
 						+ ' a kit.cli.Cli, which will set things up for you.';
 				}
-				return backing_input;
+				return backing_arguments;
 			}
 
-			@:noCompletion var backing_output:Null<kit.cli.Output> = null;
+			@:noCompletion var backing_console:Null<kit.cli.Console> = null;
 
-			public var output(get, never):kit.cli.Output;
+			public var console(get, never):kit.cli.Console;
 
-			function get_output():kit.cli.Output {
-				if (backing_output == null) {
-					throw 'Attempted to access Output before the Command was ready.'
+			function get_console():kit.cli.Console {
+				if (backing_console == null) {
+					throw 'Attempted to access Console before the Command was ready.'
 						+ ' Generally, you should only be using kit.cli.Command inside'
 						+ ' a kit.cli.Cli, which will set things up for you.';
 				}
-				return backing_output;
+				return backing_console;
 			}
 
-			public function process(input:kit.cli.Input, output:kit.cli.Output):kit.Task<Int> {
-				backing_input = input;
-				backing_output = output;
+			public function process(arguments:kit.cli.Arguments, console:kit.cli.Console):kit.Task<Int> {
+				backing_arguments = arguments;
+				backing_console = console;
 
 				try {
 					@:mergeBlock $b{process};
-					var __command = input.getArguments()[0];
+					var __command = arguments.getArguments()[0];
 					@:mergeBlock $b{router};
 					@:mergeBlock $b{builder.defaultRouteHook().getExprs()};
-				} catch (e:kit.cli.parse.ParseException) {
-					output.error(e.message);
-					output.writeLn(getDocs());
+				} catch (e) {
+					console.error(e.message);
+					console.writeLine(getDocs());
 					return kit.Task.ok(1);
 				}
 			}

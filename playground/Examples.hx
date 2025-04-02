@@ -1,6 +1,7 @@
 using Lambda;
 using Kit;
 using kit.Cli;
+using kit.cli.display.TaskTools;
 
 function main() {
 	var cli = Cli.fromSys();
@@ -35,16 +36,29 @@ class App implements Command {
 	@:command
 	public function other(bar:String = ''):Task<Int> {
 		if (help) {
-			output.write('Enter a string!'.backgroundColor(White).color(Red));
+			console.write('Enter a string!'.backgroundColor(White).color(Red));
 			return 0;
 		}
 
-		output
-			.writeLn('We can do fun stuff with styles: '.underscore())
+		console
+			.writeLine('We can do fun stuff with styles: '.underscore())
 			.write(' This has a background '.backgroundColor(White).color(Blue).bold())
-			.writeLn(bar.color(Red).bold());
+			.writeLine(bar.color(Red).bold());
 
 		return 0;
+	}
+
+	@:command
+	public function task():Task<Int> {
+		return console.runTask(console -> {
+			console.write("Working...");
+			new Task(activate -> {
+				haxe.Timer.delay(() -> activate(Ok(0)), 2000);
+			});
+		}).then(code -> {
+			console.writeLine('Done');
+			code;
+		});
 	}
 
 	/**
@@ -52,7 +66,7 @@ class App implements Command {
 	**/
 	@:defaultCommand
 	public function docs():Task<Int> {
-		output.write(getDocs());
+		console.write(getDocs());
 		return 0;
 	}
 }
@@ -74,7 +88,7 @@ class SubCommand implements Command {
 	**/
 	@:command
 	function help() {
-		output.write(getDocs());
+		console.write(getDocs());
 		return 0;
 	}
 
@@ -83,7 +97,7 @@ class SubCommand implements Command {
 	**/
 	@:defaultCommand
 	function doesAThing(foo:String, bin:String = 'ok'):Task<Int> {
-		output.writeLn(prefix + ' ' + foo + bin + ' ' + suffix);
+		console.writeLine(prefix + ' ' + foo + bin + ' ' + suffix);
 		return 0;
 	}
 }

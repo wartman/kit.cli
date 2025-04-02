@@ -68,10 +68,10 @@ class CommandFieldBuildStep implements BuildStep {
 				));
 				builder.routerHook().addExpr(macro {
 					if (${check}) {
-						return this.$name.process(new kit.cli.input.ArrayInput(
-							input.getFlags(),
-							input.getArguments().slice(1)
-						), output);
+						return this.$name.process(new kit.cli.Arguments(
+							arguments.getFlags(),
+							arguments.getArguments().slice(1)
+						), console);
 					}
 				});
 
@@ -80,7 +80,7 @@ class CommandFieldBuildStep implements BuildStep {
 				var argDocs:Array<Expr> = [];
 				var parsers:Array<Expr> = [for (index => arg in f.args) {
 					var defaultBranch = if (arg.value == null) {
-						macro throw new kit.cli.parse.ParseException('The argument ' + $v{arg.name} + ' is required');
+						macro throw new kit.Error(NotFound, 'The argument ' + $v{arg.name} + ' is required');
 					} else {
 						arg.value;
 					}
@@ -97,9 +97,9 @@ class CommandFieldBuildStep implements BuildStep {
 				}];
 				var validator = switch parsers.length {
 					case 0:
-						macro if (__arguments.length > 0) throw new kit.cli.parse.ParseException('Unexpected argument: ' + __arguments[0]);
+						macro if (__arguments.length > 0) throw new kit.Error(NotAcceptable, 'Unexpected argument: ' + __arguments[0]);
 					case len:
-						macro if (__arguments.length > $v{len}) throw new kit.cli.parse.ParseException('Unexpected argument: ' + __arguments[$v{len}]);
+						macro if (__arguments.length > $v{len}) throw new kit.Error(NotAcceptable, 'Unexpected argument: ' + __arguments[$v{len}]);
 				}
 
 				builder.specHook().addExpr(macro kit.cli.Spec.SpecEntry.SpecCommand(
@@ -112,14 +112,14 @@ class CommandFieldBuildStep implements BuildStep {
 				if (parsers.length == 0) {
 					builder.routerHook().addExpr(macro {
 						if (${check}) {
-							var __arguments = input.getArguments().slice(1);
+							var __arguments = arguments.getArguments().slice(1);
 							${validator};
 							@:pos(field.pos) return this.$name();
 						}
 					});
 					if (isDefault) {
 						builder.defaultRouteHook().addExpr(macro {
-							var __arguments = input.getArguments();
+							var __arguments = arguments.getArguments();
 							${validator};
 							@:pos(field.pos) return this.$name();
 						});
@@ -127,14 +127,14 @@ class CommandFieldBuildStep implements BuildStep {
 				} else {
 					builder.routerHook().addExpr(macro {
 						if (${check}) {
-							var __arguments = input.getArguments().slice(1);
+							var __arguments = arguments.getArguments().slice(1);
 							${validator};
 							@:pos(field.pos) return this.$name($a{parsers});
 						}
 					});
 					if (isDefault) {
 						builder.defaultRouteHook().addExpr(macro {
-							var __arguments = input.getArguments();
+							var __arguments = arguments.getArguments();
 							${validator};
 							@:pos(field.pos) return this.$name($a{parsers});
 						});
